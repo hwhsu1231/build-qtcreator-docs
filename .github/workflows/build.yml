@@ -34,17 +34,6 @@ jobs:
           echo "[Secrets]"
           echo "secrets.GITHUB_TOKEN = ${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Compute QT6_VERSION
-        run: |
-          # Use regular expression to match and extract the version
-          if [[ $QT6_RELEASE =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-              QT6_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
-              echo "QT6_VERSION=$QT6_VERSION" >> $GITHUB_ENV
-              echo "QT6_VERSION: $QT6_VERSION"
-          else
-              echo "Format does not match"
-          fi
-
       - name: Checkout to '${{ github.ref }}'
         uses: actions/checkout@v3
         with:
