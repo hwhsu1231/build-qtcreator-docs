@@ -1,0 +1,185 @@
+name: build
+
+on:
+  # Triggers the workflow on push or pull request events but only for the "master" branch
+  push:
+    branches: [ "master" ]
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - '.github/workflows/**'
+  # Allows for the workflow to be manually started through the GitHub UI
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      QT6_RELEASE: '6.6.2'
+    steps:
+      - name: Check Contexts and Secrets
+        run: |
+          echo "[Contexts]"
+          echo "github.job = ${{ github.job }}"
+          echo "github.ref = ${{ github.ref }}"
+          echo "github.ref_name = ${{ github.ref_name }}"
+          echo "github.event_name = ${{ github.event_name }}"
+          echo "github.workspace = ${{ github.workspace }}"
+          echo "[Secrets]"
+          echo "secrets.GITHUB_TOKEN = ${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Compute QT6_VERSION
+        run: |
+          # Use regular expression to match and extract the version
+          if [[ $QT6_RELEASE =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              QT6_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+              echo "QT6_VERSION=$QT6_VERSION" >> $GITHUB_ENV
+              echo "QT6_VERSION: $QT6_VERSION"
+          else
+              echo "Format does not match"
+          fi
+
+      - name: Checkout to '${{ github.ref }}'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+
+      # https://wiki.qt.io/Building_Qt_6_from_Git
+      - name: Install the Prerequisites
+        run: |
+          sudo apt update
+          sudo apt install              \
+            gcc                         \
+            build-essential             \
+            cmake                       \
+            ninja-build                 \
+            python3                     \
+            python3-pip                 \
+            elfutils                    \
+            libdw-dev                   \
+            liblitehtml-dev             \
+            qt6-base-dev                \
+            qt6-base-private-dev        \
+            qt6-quick3d-dev             \
+            qt6-quick3d-dev-tools       \
+            qt6-declarative-dev         \
+            qt6-declarative-private-dev \
+            qt6-tools-dev               \
+            qt6-tools-dev-tools         \
+            qt6-tools-private-dev       \
+            qt6-l10n-tools              \
+            qt6-documentation-tools     \
+            qt6-scxml-dev               \
+            qt6-shader-baker            \
+            libqt6core5compat6-dev      \
+            libqt6shadertools6-dev      \
+            libqt6svg6-dev              \
+            libqt6quicktimeline6-dev    \
+            libqt6serialport6-dev
+
+            sudo apt install        \
+              libgl1-mesa-dev       \
+              libvulkan-dev         \
+              libxcb-xinput-dev     \
+              libxcb-xinerama0-dev  \
+              libxkbcommon-dev      \
+              libxkbcommon-x11-dev  \
+              libxcb-image0         \
+              libxcb-keysyms1       \
+              libxcb-render-util0   \
+              libxcb-xkb1           \
+              libxcb-randr0         \
+              libxcb-icccm4
+
+      - name: Install the Prerequisites (for QDoc)
+        run: |
+          echo "------------------------------------------------------------"
+          echo "Remove Clang/LLVM 13 installed by apt"
+          echo "------------------------------------------------------------"
+          sudo apt autoremove       \
+            clang-13                \
+            clang-format-13         \
+            clang-tidy-13           \
+            clang-tools-13          \
+            libclang-common-13-dev  \
+            libclang1-13            \
+            libclang-13-dev         \
+            llvm-13                 \
+            llvm-13-dev             \
+            llvm-13-linker-tools    \
+            llvm-13-runtime         \
+            llvm-13-tools           \
+            libllvm13
+          echo "------------------------------------------------------------"
+          echo "Remove Clang/LLVM 14 installed by apt"
+          echo "------------------------------------------------------------"
+          sudo apt autoremove       \
+            clang-14                \
+            clang-format-14         \
+            clang-tidy-14           \
+            clang-tools-14          \
+            libclang-common-14-dev  \
+            libclang1-14            \
+            libclang-14-dev         \
+            llvm-14                 \
+            llvm-14-dev             \
+            llvm-14-linker-tools    \
+            llvm-14-runtime         \
+            llvm-14-tools           \
+            libllvm14
+          echo "------------------------------------------------------------"
+          echo "Remove Clang/LLVM 15 installed by apt"
+          echo "------------------------------------------------------------"
+          sudo apt autoremove       \
+            clang-15                \
+            clang-format-15         \
+            clang-tidy-15           \
+            clang-tools-15          \
+            libclang-common-15-dev  \
+            libclang1-15            \
+            libclang-15-dev         \
+            llvm-15                 \
+            llvm-15-dev             \
+            llvm-15-linker-tools    \
+            llvm-15-runtime         \
+            llvm-15-tools           \
+            libllvm15
+          echo "------------------------------------------------------------"
+          echo "Install Clang/LLVM 17 Toolchain by llvm.sh"
+          echo "------------------------------------------------------------"
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17 all
+
+      - name: Prepare the QtCreator Sources
+        run: |
+          curl -L https://download.qt.io/official_releases/qtcreator/12.0/12.0.2/qt-creator-opensource-src-12.0.2.tar.xz -o qt-creator-opensource-src-12.0.2.tar.xz
+          tar -xf qt-creator-opensource-src-12.0.2.tar.xz
+          mv qt-creator-opensource-src-12.0.2 qtcreator
+
+      - name: Configure the Qt6 Project
+        run: |
+          cd qtcreator
+          mkdir build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug -G Ninja -DWITH_DOCS=ON ..
+
+      - name: Build the Qt6 Project with the 'html_docs' Target
+        run: |
+          cd qtcreator
+          cd build
+          cmake --build . --target docs
+
+      - name: Deploy to 'gh-pages' branch
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh-pages
+          folder: ./qtcreator/build/doc/html
+          target-folder: .
+          clean: false
